@@ -150,11 +150,14 @@ The adapter is dry-run-first: it does **not submit orders unless `--execute-pape
 
 The script also documents a key execution limitation: the two leg orders are not atomic, so leg risk remains.
 
+A safe credential template is included at `.env.example`. Copy it locally to `.env`, add your **paper-account** credentials there, and do not commit the completed `.env` file.
+
 ## Project structure
 
 ```text
 Pairs-Trading-/
 ├── README.md
+├── .env.example
 └── pairs trading/
     ├── main.py
     ├── main.ipynb
@@ -204,7 +207,7 @@ pytest
 
 The tests cover data handling, pair selection, signal generation and core backtester behaviour.
 
-For the paper adapter, set Alpaca paper-account credentials in environment variables or a local `.env` file. Dry-run behaviour remains the default; paper orders require the explicit `--execute-paper` flag.
+For the paper adapter, copy `.env.example` to `.env`, add Alpaca paper-account credentials, then run the adapter from the implementation directory. Dry-run behaviour remains the default; paper orders require the explicit `--execute-paper` flag.
 
 ## Limitations
 
