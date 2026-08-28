@@ -36,6 +36,16 @@ def _load_selected_payload(path: Path) -> dict[str, Any]:
         return json.load(file)
 
 
+def _require_tradeable_selection(pair_info: dict[str, Any]) -> None:
+    """Refuse paper-order planning for a research-only fallback candidate."""
+
+    if not bool(pair_info.get("eligible", False)):
+        raise RuntimeError(
+            "The selected pair did not pass the strict FDR-aware validation. "
+            "It is a research fallback only; paper-order planning is disabled."
+        )
+
+
 def _require_credentials() -> tuple[str, str]:
     load_dotenv()
     api_key = os.getenv("ALPACA_API_KEY", "").strip()
@@ -139,7 +149,9 @@ def _build_order_plan(
     def reduction_first(order: dict[str, Any]) -> tuple[int, str]:
         current = int(order["current_quantity"])
         target = int(order["target_quantity"])
-        reducing = abs(target) < abs(current) or (current != 0 and np.sign(target) != np.sign(current))
+        reducing = abs(target) < abs(current) or (
+            current != 0 and np.sign(target) != np.sign(current)
+        )
         return (0 if reducing else 1, str(order["symbol"]))
 
     return sorted(orders, key=reduction_first)
@@ -177,10 +189,11 @@ def main() -> dict[str, Any]:
         raise ValueError("calendar-days must be at least 100")
 
     payload = _load_selected_payload(args.selected_json)
-    api_key, secret_key = _require_credentials()
-
     pair_info = payload["pair"]
     strategy_info = payload["strategy"]
+    _require_tradeable_selection(pair_info)
+    api_key, secret_key = _require_credentials()
+
     symbol_y = str(pair_info["symbol_y"]).upper()
     symbol_x = str(pair_info["symbol_x"]).upper()
     symbols = [symbol_y, symbol_x]
@@ -224,8 +237,20 @@ def main() -> dict[str, Any]:
     ).iloc[-1]
 
     target_quantities = {
-        symbol_y: int(round(gross_dollars * latest_weights["weight_y"] / latest_prices[symbol_y])),
-        symbol_x: int(round(gross_dollars * latest_weights["weight_x"] / latest_prices[symbol_x])),
+        symbol_y: int(
+            round(
+                gross_dollars
+                * latest_weights["weight_y"]
+                / latest_prices[symbol_y]
+            )
+        ),
+        symbol_x: int(
+            round(
+                gross_dollars
+                * latest_weights["weight_x"]
+                / latest_prices[symbol_x]
+            )
+        ),
     }
 
     _validate_assets(trading_client, target_quantities)
