@@ -6,6 +6,7 @@ from dataclasses import replace
 import numpy as np
 import pandas as pd
 
+from pair_data import align_pair_prices
 from pair_selection import PairSelectionConfig, evaluate_pair, screen_pairs
 
 
@@ -96,7 +97,7 @@ def rolling_pair_diagnostics(
         minimum_observations=min(base.minimum_observations, window),
     )
 
-    pair = prices[[symbol_y.upper(), symbol_x.upper()]].dropna().sort_index()
+    pair = align_pair_prices(prices, symbol_y, symbol_x)
     if len(pair) < window:
         raise ValueError("not enough observations for one rolling window")
 
