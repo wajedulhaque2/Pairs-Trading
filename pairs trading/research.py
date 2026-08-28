@@ -17,16 +17,43 @@ from pair_backtester import (
 from pair_data import align_pair_prices
 from pair_selection import PairSelectionConfig, screen_pairs, select_best_pair
 from pair_strategy import PairStrategyConfig, build_pair_signal
+from statistical_validation import apply_fdr_control, select_tradeable_pair
 
 
 def choose_pair(
     training_prices: pd.DataFrame,
     selection_config: PairSelectionConfig,
 ) -> tuple[pd.Series, pd.DataFrame]:
-    """Screen the training universe and return the highest-ranked pair."""
+    """Screen the training universe with FDR-aware tradeability control.
 
-    ranking = screen_pairs(training_prices, selection_config)
-    selected = select_best_pair(ranking)
+    The returned ranking retains the original ``eligible`` diagnostic and adds
+    ``eligible_fdr`` plus the adjusted cointegration q-value. If no candidate
+    survives FDR control, the highest-ranked raw candidate is still returned as
+    a research case study, but its returned ``eligible`` flag is deliberately
+    set to ``False`` so downstream execution code cannot mistake it for a
+    tradeable selection.
+    """
+
+    ranking = apply_fdr_control(
+        screen_pairs(training_prices, selection_config),
+        alpha=selection_config.maximum_cointegration_pvalue,
+    )
+    strict_selection = select_tradeable_pair(
+        ranking,
+        alpha=selection_config.maximum_cointegration_pvalue,
+    )
+
+    if strict_selection is None:
+        selected = select_best_pair(ranking).copy()
+        selected["eligible_raw"] = bool(selected["eligible"])
+        selected["eligible"] = False
+        selected["selection_mode"] = "research_fallback"
+    else:
+        selected = strict_selection.copy()
+        selected["eligible_raw"] = bool(selected["eligible"])
+        selected["eligible"] = True
+        selected["selection_mode"] = "strict_fdr"
+
     return selected, ranking
 
 
